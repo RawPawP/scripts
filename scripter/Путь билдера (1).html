@@ -1,0 +1,818 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Путь билдера</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Manrope:wght@400;500;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Макет: шапка со ступенчатой «лестницей» из четырёх блоков → выбор уровня с чек-листом → сравнение → галерея работ → критерии → заявка */
+:root{
+  --bg:#EDF0F6; --surface:#FFFFFF; --surface-2:#E2E7F0; --fg:#0E1829; --muted:#4F5C75; --line:#C9D1DF;
+  --t1:#14803F; --t2:#2159C8; --t3:#C25E00; --t4:#9A6B00; --on-t:#FFFFFF;
+  --font-display:'Unbounded',system-ui,sans-serif;
+  --font-body:'Manrope',system-ui,sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0B1220; --surface:#131C2E; --surface-2:#1B2640; --fg:#E8EDF7; --muted:#9AA7C0; --line:#27344F;
+    --t1:#4CD38A; --t2:#79A8FF; --t3:#FFA24D; --t4:#F5C94D; --on-t:#0B1220; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1220; --surface:#131C2E; --surface-2:#1B2640; --fg:#E8EDF7; --muted:#9AA7C0; --line:#27344F;
+  --t1:#4CD38A; --t2:#79A8FF; --t3:#FFA24D; --t4:#F5C94D; --on-t:#0B1220; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:16px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0;
+}
+.t1{--tc:var(--t1)} .t2{--tc:var(--t2)} .t3{--tc:var(--t3)} .t4{--tc:var(--t4)}
+.wrap{max-width:1120px;margin:0 auto}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--t2);outline-offset:2px}
+.mono{font-family:var(--font-mono)}
+.eyebrow{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 10px}
+h1,h2,h3,h4{margin:0;text-wrap:balance}
+h2{font-family:var(--font-display);font-weight:700;font-size:clamp(1.35rem,1rem + 1.5vw,2.05rem);line-height:1.2;letter-spacing:-.01em}
+p{margin:0}
+.lead{color:var(--muted);max-width:62ch}
+
+/* верхняя полоса */
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px 24px;flex-wrap:wrap;padding-block:20px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--font-display);font-weight:700;font-size:1rem;text-decoration:none}
+.logo{display:grid;grid-template-columns:repeat(3,7px);gap:3px;padding-top:0}
+.logo i{display:block;width:7px;height:7px;border-radius:2px;background:var(--t1)}
+.logo i:nth-child(2){background:var(--t2)} .logo i:nth-child(3){background:var(--t3)}
+.nav{display:flex;gap:6px 18px;flex-wrap:wrap;font-family:var(--font-mono);font-size:.8rem}
+.nav a{text-decoration:none;color:var(--muted);padding:4px 0;border-bottom:2px solid transparent}
+.nav a:hover{color:var(--fg);border-color:var(--fg)}
+
+/* шапка */
+.hero{
+  display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:end;padding-block:28px 64px;position:relative;
+}
+.hero::before{
+  content:"";position:absolute;inset:0 -8px 0 -8px;z-index:-1;
+  background-image:radial-gradient(circle,var(--line) 1.6px,transparent 2.2px);background-size:22px 22px;
+  -webkit-mask-image:linear-gradient(180deg,#000 0%,transparent 90%);mask-image:linear-gradient(180deg,#000 0%,transparent 90%);
+}
+.hero h1{font-family:var(--font-display);font-weight:700;font-size:clamp(1.9rem,1.1rem + 3.6vw,3.6rem);line-height:1.08;letter-spacing:-.02em;margin-bottom:20px}
+.hero .lead{font-size:1.08rem;margin-bottom:28px}
+.cta{display:flex;flex-wrap:wrap;gap:12px}
+.btn{font:inherit;font-weight:700;padding:12px 20px;border:2px solid var(--fg);background:var(--fg);color:var(--bg);border-radius:4px;cursor:pointer;text-decoration:none;display:inline-block;line-height:1.3}
+.btn.ghost{background:transparent;color:var(--fg)}
+.btn:hover{transform:translateY(-1px)}
+.stairs{display:flex;align-items:flex-end;gap:6px;max-width:460px;width:100%;justify-self:end}
+.step{
+  flex:1;min-width:0;height:var(--h);background:var(--tc);color:var(--on-t);position:relative;
+  padding:10px 9px;display:flex;flex-direction:column;justify-content:flex-end;border-radius:3px 3px 0 0;
+}
+.step::before{
+  content:"";position:absolute;left:8px;right:8px;top:-7px;height:7px;border-radius:3px 3px 0 0;
+  background:repeating-linear-gradient(90deg,var(--tc) 0 9px,transparent 9px 15px);
+}
+.step b{font-family:var(--font-display);font-size:1.5rem;line-height:1}
+.step span{font-family:var(--font-mono);font-size:.7rem;margin-top:6px;letter-spacing:.02em}
+
+/* секции */
+section{padding-block:56px}
+.sec-head{display:grid;gap:12px;margin-bottom:28px}
+
+/* выбор уровня */
+.tabs{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
+.tab{
+  font:inherit;text-align:left;color:var(--fg);background:var(--surface);border:2px solid var(--line);border-top:6px solid var(--tc);
+  border-radius:4px;padding:12px 14px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px;min-width:0;
+}
+.tab:hover{border-color:var(--tc)}
+.tab[aria-pressed="true"]{border-color:var(--tc);background:color-mix(in srgb,var(--tc) 12%,var(--surface))}
+.tab .tn{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.tab strong{font-family:var(--font-display);font-weight:500;font-size:.98rem;line-height:1.25}
+.tab .tp{font-family:var(--font-mono);font-size:.76rem;color:var(--muted);margin-top:4px}
+.panel{
+  background:var(--surface);border:2px solid var(--tc);border-radius:4px;margin-top:14px;
+  padding:clamp(18px,3vw,34px);display:grid;grid-template-columns:1.3fr 1fr;gap:clamp(22px,4vw,44px);
+}
+.panel>*{min-width:0}
+.panel h3{font-family:var(--font-display);font-weight:700;font-size:clamp(1.3rem,1rem + 1.2vw,1.8rem);line-height:1.2;color:var(--tc);margin-bottom:10px}
+.panel .tag{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+.panel .lead{margin-bottom:20px}
+.prog{display:flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:.8rem;margin-bottom:6px}
+.bar{flex:1;height:10px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.bar i{display:block;height:100%;width:var(--w,0%);background:var(--tc);transition:width .25s}
+.checks{margin-top:10px}
+.chk{display:flex;gap:12px;padding:11px 0;border-top:1px solid var(--line);cursor:pointer;align-items:flex-start}
+.chk input{width:20px;height:20px;accent-color:var(--tc);margin:3px 0 0;flex:none;cursor:pointer}
+.chk span{min-width:0}
+.chk input:checked+span{color:var(--muted)}
+.ready{margin-top:14px;padding:11px 14px;background:color-mix(in srgb,var(--tc) 14%,var(--surface));border-left:5px solid var(--tc);font-weight:700}
+.ready a{color:var(--tc)}
+.side{display:grid;gap:26px;align-content:start}
+.side h4{font-family:var(--font-mono);font-weight:500;font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+ul.sq{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+ul.sq li{position:relative;padding-left:20px}
+ul.sq li::before{content:"";position:absolute;left:0;top:.5em;width:9px;height:9px;background:var(--tc);border-radius:2px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips span{font-family:var(--font-mono);font-size:.76rem;padding:3px 8px;border:1.5px solid var(--line);border-radius:3px;background:var(--bg)}
+
+/* сравнение */
+.scroller{overflow-x:auto;border:2px solid var(--fg);border-radius:4px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:.93rem}
+th,td{padding:12px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line)}
+tr:last-child td,tr:last-child th{border-bottom:0}
+thead th{border-top:6px solid var(--tc);background:var(--surface);font-family:var(--font-display);font-weight:500;font-size:.85rem;line-height:1.25}
+tbody th{font-weight:700;width:19%;background:var(--surface-2)}
+td{width:20%}
+
+/* галерея */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.fbtn{font:inherit;font-family:var(--font-mono);font-size:.82rem;padding:8px 14px;border:2px solid var(--line);background:var(--surface);color:var(--fg);border-radius:4px;cursor:pointer}
+.fbtn[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,262px),1fr));gap:16px}
+.work{display:flex;flex-direction:column;background:var(--surface);border:2px solid var(--line);border-radius:4px;overflow:hidden;min-width:0}
+.work .art svg{display:block;width:100%;height:auto}
+.work .meta{padding:14px 16px 16px;display:grid;gap:8px;border-top:5px solid var(--tc)}
+.badge{font-family:var(--font-mono);font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--tc);font-weight:500}
+.work h3{font-family:var(--font-display);font-weight:500;font-size:1rem;line-height:1.3}
+.stats{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--font-mono);font-size:.78rem;color:var(--muted)}
+.count{font-family:var(--font-mono);font-size:.8rem;color:var(--muted);margin-top:14px}
+
+/* критерии */
+.crit{border-top:2px solid var(--fg)}
+.crow{display:grid;grid-template-columns:230px 1fr;gap:8px 24px;padding:18px 0;border-bottom:1px solid var(--line)}
+.crow h3{font-family:var(--font-display);font-weight:500;font-size:1rem}
+.crow p{color:var(--muted);max-width:68ch}
+.crow .mono{color:var(--fg);font-size:.86rem}
+
+/* заявка */
+.apply{display:grid;grid-template-columns:1fr 1fr;gap:clamp(22px,4vw,44px);align-items:start}
+.apply>*{min-width:0}
+ol.flow{list-style:none;counter-reset:s;margin:0;padding:0;display:grid;gap:0}
+ol.flow li{counter-increment:s;position:relative;padding:0 0 22px 52px}
+ol.flow li::before{
+  content:counter(s);position:absolute;left:0;top:0;width:34px;height:34px;display:grid;place-items:center;
+  background:var(--fg);color:var(--bg);font-family:var(--font-display);font-weight:700;border-radius:4px;
+}
+ol.flow li::after{content:"";position:absolute;left:16px;top:38px;bottom:4px;width:2px;background:var(--line)}
+ol.flow li:last-child::after{display:none}
+ol.flow strong{display:block;margin-bottom:2px}
+ol.flow span{color:var(--muted)}
+.tpl{background:var(--surface);border:2px solid var(--fg);border-radius:4px;overflow:hidden}
+.tpl header{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;background:var(--surface-2);border-bottom:2px solid var(--fg);font-family:var(--font-mono);font-size:.8rem}
+.tpl .btn{padding:6px 12px;font-size:.82rem;font-family:var(--font-mono)}
+.tpl pre{margin:0;padding:16px;font-family:var(--font-mono);font-size:.84rem;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere}
+footer{padding-block:36px 56px;border-top:2px solid var(--fg);color:var(--muted);font-size:.9rem;display:grid;gap:8px}
+
+@media (max-width:860px){
+  .hero{grid-template-columns:1fr;gap:34px;padding-bottom:40px}
+  .stairs{justify-self:start}
+  .panel,.apply{grid-template-columns:1fr}
+  .crow{grid-template-columns:1fr}
+  section{padding-block:40px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .btn:hover{transform:none}
+  .bar i{transition:none}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <pattern id="win" width="14" height="16" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="8" height="9" fill="#FFD76A"/></pattern>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <header class="top">
+    <a class="brand" href="#top-of-page"><span class="logo" aria-hidden="true"><i></i><i></i><i></i></span>Путь билдера</a>
+    <nav class="nav" aria-label="Разделы">
+      <a href="#roles">Роли</a><a href="#compare">Сравнение</a><a href="#rules">Правила</a><a href="#works">Примеры работ</a><a href="#criteria">Критерии</a><a href="#apply">Заявка</a>
+    </nav>
+  </header>
+
+  <main id="top-of-page">
+    <div class="hero">
+      <div>
+        <p class="eyebrow">Roblox Studio · система ролей</p>
+        <h1>Путь билдера от первой детали до топа</h1>
+        <p class="lead">Четыре роли: начинающий, средний, продвинутый и топовый билдер. Для каждой есть список требований, примеры работ и шаблон заявки. Отмечай выполненное и смотри, сколько осталось до следующей роли.</p>
+        <div class="cta">
+          <a class="btn" href="#roles">Выбрать роль</a>
+          <a class="btn ghost" href="#works">Смотреть примеры</a>
+        </div>
+      </div>
+      <div class="stairs" aria-hidden="true">
+        <div class="step t1" style="--h:92px"><b>1</b><span>Начало</span></div>
+        <div class="step t2" style="--h:140px"><b>2</b><span>Средний</span></div>
+        <div class="step t3" style="--h:190px"><b>3</b><span>Продвин.</span></div>
+        <div class="step t4" style="--h:244px"><b>4</b><span>Топ</span></div>
+      </div>
+    </div>
+
+    <section id="roles">
+      <div class="sec-head">
+        <p class="eyebrow">Требования</p>
+        <h2>Что нужно для каждой роли</h2>
+        <p class="lead">Выбери уровень и отмечай пункты, которые уже выполнены. Отметки сохраняются в этом браузере.</p>
+      </div>
+      <div class="tabs" id="tabs"></div>
+      <div class="panel" id="panel"></div>
+    </section>
+
+    <section id="compare">
+      <div class="sec-head">
+        <p class="eyebrow">Сравнение</p>
+        <h2>Четыре роли рядом</h2>
+      </div>
+      <div class="scroller">
+        <table>
+          <thead>
+            <tr>
+              <th></th>
+              <th class="t1">Начинающий</th>
+              <th class="t2">Средний</th>
+              <th class="t3">Продвинутый</th>
+              <th class="t4">Топовый</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th>Деталей в крупной работе</th><td>от 50</td><td>от 300</td><td>от 2000</td><td>от 8000</td></tr>
+            <tr><th>Работ в портфолио</th><td>5</td><td>8</td><td>12</td><td>20</td></tr>
+            <tr><th>Свет</th><td>Цвета и материалы</td><td>PointLight, SpotLight</td><td>Atmosphere, Bloom, ColorCorrection</td><td>Future, частицы, лучи</td></tr>
+            <tr><th>Terrain</th><td>Не нужен</td><td>Не нужен</td><td>Холмы, вода, горы</td><td>Целая карта</td></tr>
+            <tr><th>Порядок и скорость</th><td>Anchored, названия</td><td>Масштаб, группы</td><td>StreamingEnabled, проверка на телефоне</td><td>60 FPS на ПК, свои меши</td></tr>
+            <tr><th>Командная работа</th><td>Показ в общем канале</td><td>Проекты сервера</td><td>Разборы чужих работ</td><td>Team Create, наставничество</td></tr>
+            <tr><th>Как проверяют</th><td>5 скриншотов и Explorer</td><td>8 скриншотов со светом</td><td>Видео, скриншоты и открытый Place</td><td>Place, запись сборки и тестовое на 24 часа</td></tr>
+            <tr><th>Готовые модели из Toolbox</th><td>Запрещены</td><td>Запрещены</td><td>Запрещены</td><td>Запрещены</td></tr>
+            <tr><th>Повторная заявка после отказа</th><td>через 7 дней</td><td>через 14 дней</td><td>через 21 день</td><td>через 30 дней</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="rules">
+      <div class="sec-head">
+        <p class="eyebrow">Правила</p>
+        <h2>Строгие правила выдачи ролей</h2>
+        <p class="lead">Эти условия действуют для всех уровней. Нарушение любого пункта ведёт к отказу.</p>
+      </div>
+      <div class="crit">
+        <div class="crow"><div><h3>Только своё</h3><p class="mono">Запрещено: Toolbox, чужие работы</p></div><p>Все работы сделаны тобой. Готовые модели из Toolbox, чужие постройки и копии с других карт не принимаются. Если плагиат найден, заявку отклоняют и закрывают подачу на 30 дней.</p></div>
+        <div class="crow"><div><h3>Роли по порядку</h3><p class="mono">Нельзя пропускать уровни</p></div><p>Сначала начинающий, потом средний и так далее. Заявку на следующую роль можно подать не раньше чем через 14 дней после получения предыдущей.</p></div>
+        <div class="crow"><div><h3>Одна попытка за срок</h3><p class="mono">7 / 14 / 21 / 30 дней</p></div><p>После отказа повторную заявку принимают только через срок из таблицы выше. Заявки, поданные раньше, не рассматривают.</p></div>
+        <div class="crow"><div><h3>Проверка по требованию</h3><p class="mono">Файл, видео, стрим</p></div><p>Модератор вправе запросить файл Place, запись сборки или показ работы в Studio в реальном времени. Отказ показать работу приравнивается к отказу в роли.</p></div>
+        <div class="crow"><div><h3>Все пункты обязательны</h3><p class="mono">Без исключений</p></div><p>Роль выдают только при выполнении каждого пункта чек-листа. Если не хватает одного, заявку отклоняют, даже когда остальное сделано отлично.</p></div>
+        <div class="crow"><div><h3>Роль можно потерять</h3><p class="mono">Активность 60 дней</p></div><p>Роль снимают за плагиат, обман при проверке и нарушение правил сервера. Со среднего уровня и выше нужна активность: минимум одна новая работа за 60 дней, иначе роль понижают на один уровень.</p></div>
+      </div>
+    </section>
+
+    <section id="works">
+      <div class="sec-head">
+        <p class="eyebrow">Примеры работ</p>
+        <h2>Как выглядит каждый уровень</h2>
+        <p class="lead">Две иллюстрации на роль. Количество деталей и часы указаны как ориентир, у вас может получиться иначе.</p>
+      </div>
+      <div class="filters" id="filters">
+        <button class="fbtn" type="button" data-f="all" aria-pressed="true">Все</button>
+        <button class="fbtn" type="button" data-f="t1" aria-pressed="false">Начинающий</button>
+        <button class="fbtn" type="button" data-f="t2" aria-pressed="false">Средний</button>
+        <button class="fbtn" type="button" data-f="t3" aria-pressed="false">Продвинутый</button>
+        <button class="fbtn" type="button" data-f="t4" aria-pressed="false">Топовый</button>
+      </div>
+
+      <div class="gallery" id="gallery">
+
+        <article class="work t1" data-tier="t1">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Домик из блоков с деревом и квадратным солнцем">
+              <rect width="320" height="200" fill="#9BD4F5"/>
+              <rect x="34" y="30" width="26" height="26" fill="#FFE27A"/>
+              <rect y="150" width="320" height="50" fill="#5DAA4A"/>
+              <rect y="150" width="320" height="6" fill="#4A9138"/>
+              <rect x="90" y="88" width="110" height="64" fill="#E8D3A8"/>
+              <polygon points="80,90 145,44 210,90" fill="#B5503C"/>
+              <rect x="130" y="112" width="26" height="40" fill="#7A4A2A"/>
+              <rect x="166" y="104" width="22" height="22" fill="#CFE9FA" stroke="#7A4A2A" stroke-width="3"/>
+              <rect x="242" y="116" width="10" height="36" fill="#7A4A2A"/>
+              <rect x="222" y="82" width="50" height="40" fill="#3E8E3A"/>
+              <rect x="232" y="64" width="30" height="20" fill="#4BA047"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Начинающий</span>
+            <h3>Домик с деревом</h3>
+            <p class="stats"><span>≈ 60 деталей</span><span>1–2 часа</span></p>
+            <p class="chips"><span>Part</span><span>Move</span><span>Scale</span></p>
+          </div>
+        </article>
+
+        <article class="work t1" data-tier="t1">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Деревянный мост через реку">
+              <rect width="320" height="200" fill="#A8DDF7"/>
+              <rect y="140" width="320" height="60" fill="#3C8FD0"/>
+              <rect y="150" width="320" height="4" fill="#5FB0EA"/>
+              <rect y="172" width="320" height="4" fill="#5FB0EA"/>
+              <rect x="0" y="118" width="74" height="82" fill="#6B4A32"/>
+              <rect x="0" y="112" width="74" height="12" fill="#5DAA4A"/>
+              <rect x="246" y="118" width="74" height="82" fill="#6B4A32"/>
+              <rect x="246" y="112" width="74" height="12" fill="#5DAA4A"/>
+              <line x1="74" y1="124" x2="246" y2="124" stroke="#6A4526" stroke-width="12" stroke-dasharray="16 2"/>
+              <line x1="76" y1="98" x2="244" y2="98" stroke="#9A6A3C" stroke-width="4"/>
+              <line x1="78" y1="108" x2="244" y2="108" stroke="#9A6A3C" stroke-width="20" stroke-dasharray="5 29"/>
+              <rect x="40" y="60" width="8" height="52" fill="#6B4A32"/>
+              <rect x="22" y="34" width="44" height="34" fill="#3E8E3A"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Начинающий</span>
+            <h3>Мост через реку</h3>
+            <p class="stats"><span>≈ 80 деталей</span><span>1–2 часа</span></p>
+            <p class="chips"><span>Part</span><span>Rotate</span><span>Snap to Grid</span></p>
+          </div>
+        </article>
+
+        <article class="work t2" data-tier="t2">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Дом в разрезе: диван, торшер со светом, книжный шкаф">
+              <defs>
+                <radialGradient id="glow1"><stop offset="0" stop-color="#FFE49A" stop-opacity=".9"/><stop offset="1" stop-color="#FFE49A" stop-opacity="0"/></radialGradient>
+              </defs>
+              <rect width="320" height="200" fill="#6FB6E8"/>
+              <rect y="170" width="320" height="30" fill="#5DAA4A"/>
+              <polygon points="30,62 160,12 290,62" fill="#7A3E32"/>
+              <rect x="46" y="62" width="228" height="108" fill="#E9DCC0"/>
+              <rect x="158" y="62" width="4" height="108" fill="#8A6A44"/>
+              <rect x="46" y="164" width="228" height="8" fill="#8A6A44"/>
+              <rect x="76" y="78" width="40" height="30" fill="#BFE3F7" stroke="#8A6A44" stroke-width="3"/>
+              <rect x="62" y="140" width="64" height="24" fill="#3B6EA8"/>
+              <rect x="62" y="124" width="64" height="18" fill="#2F5C90"/>
+              <circle cx="139" cy="128" r="34" fill="url(#glow1)"/>
+              <rect x="137" y="132" width="3" height="32" fill="#444"/>
+              <rect x="131" y="124" width="16" height="10" fill="#FFD76A"/>
+              <rect x="194" y="146" width="44" height="6" fill="#7A4A2A"/>
+              <rect x="198" y="152" width="4" height="12" fill="#7A4A2A"/>
+              <rect x="230" y="152" width="4" height="12" fill="#7A4A2A"/>
+              <rect x="244" y="82" width="26" height="82" fill="#7A4A2A"/>
+              <rect x="247" y="86" width="20" height="6" fill="#D9534F"/>
+              <rect x="247" y="98" width="20" height="6" fill="#4C9BE8"/>
+              <rect x="247" y="110" width="20" height="6" fill="#F0C040"/>
+              <rect x="247" y="122" width="20" height="6" fill="#5DAA4A"/>
+              <rect x="184" y="86" width="30" height="22" fill="#C9884A" stroke="#7A4A2A" stroke-width="3"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Средний</span>
+            <h3>Дом с интерьером</h3>
+            <p class="stats"><span>≈ 320 деталей</span><span>6–8 часов</span></p>
+            <p class="chips"><span>Union</span><span>PointLight</span><span>Material</span></p>
+          </div>
+        </article>
+
+        <article class="work t2" data-tier="t2">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Кафе с полосатым навесом, вывеской и тёплым светом в окне">
+              <rect width="320" height="200" fill="#F7C59F"/>
+              <rect x="40" y="60" width="240" height="112" fill="#A9473A"/>
+              <line x1="40" y1="56" x2="280" y2="56" stroke="#FFE27A" stroke-width="5" stroke-dasharray="1 17" stroke-linecap="round"/>
+              <rect x="108" y="66" width="104" height="22" fill="#2B2B33"/>
+              <text x="160" y="82" text-anchor="middle" font-family="'JetBrains Mono',monospace" font-weight="700" font-size="14" fill="#FFD76A">КОФЕ</text>
+              <rect x="50" y="94" width="28" height="20" fill="#F5F0E6"/><rect x="78" y="94" width="28" height="20" fill="#D9534F"/>
+              <rect x="106" y="94" width="28" height="20" fill="#F5F0E6"/><rect x="134" y="94" width="28" height="20" fill="#D9534F"/>
+              <rect x="162" y="94" width="28" height="20" fill="#F5F0E6"/><rect x="190" y="94" width="28" height="20" fill="#D9534F"/>
+              <rect x="218" y="94" width="28" height="20" fill="#F5F0E6"/><rect x="246" y="94" width="24" height="20" fill="#D9534F"/>
+              <rect x="56" y="122" width="124" height="48" fill="#3A2A22"/>
+              <rect x="56" y="122" width="124" height="48" fill="#FFC76B" opacity=".55"/>
+              <rect x="116" y="122" width="4" height="48" fill="#3A2A22"/>
+              <rect x="74" y="148" width="22" height="3" fill="#3A2A22"/>
+              <rect x="136" y="148" width="22" height="3" fill="#3A2A22"/>
+              <rect x="200" y="118" width="48" height="54" fill="#2B2B33"/>
+              <rect x="206" y="124" width="36" height="42" fill="#FFC76B" opacity=".5"/>
+              <rect y="172" width="320" height="28" fill="#6B6B76"/>
+              <rect x="258" y="154" width="18" height="4" fill="#E9DCC0"/><rect x="266" y="158" width="3" height="14" fill="#E9DCC0"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Средний</span>
+            <h3>Кафе на углу</h3>
+            <p class="stats"><span>≈ 450 деталей</span><span>8–10 часов</span></p>
+            <p class="chips"><span>Negate</span><span>SurfaceGui</span><span>Lighting</span></p>
+          </div>
+        </article>
+
+        <article class="work t3" data-tier="t3">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Замок на холме на закате, горы и сосны">
+              <defs>
+                <linearGradient id="skyS" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3A4A8C"/><stop offset=".75" stop-color="#F29E6B"/></linearGradient>
+              </defs>
+              <rect width="320" height="200" fill="url(#skyS)"/>
+              <circle cx="262" cy="64" r="20" fill="#FFE6A8"/>
+              <polygon points="0,140 60,80 120,140" fill="#4B5C8F"/>
+              <polygon points="80,140 150,66 230,140" fill="#56699E"/>
+              <polygon points="200,140 270,88 330,140" fill="#4B5C8F"/>
+              <path d="M-10 200 L-10 152 Q160 98 330 152 L330 200Z" fill="#3E7D43"/>
+              <rect x="84" y="88" width="24" height="64" fill="#C9CCD8"/>
+              <polygon points="80,88 96,58 112,88" fill="#C0463A"/>
+              <rect x="212" y="88" width="24" height="64" fill="#C9CCD8"/>
+              <polygon points="208,88 224,58 240,88" fill="#C0463A"/>
+              <rect x="106" y="112" width="108" height="40" fill="#A3A7B6"/>
+              <rect x="134" y="90" width="52" height="62" fill="#B9BCC8"/>
+              <line x1="134" y1="86" x2="186" y2="86" stroke="#B9BCC8" stroke-width="8" stroke-dasharray="8 6"/>
+              <rect x="150" y="64" width="20" height="26" fill="#D5D8E2"/>
+              <polygon points="146,64 160,40 174,64" fill="#C0463A"/>
+              <rect x="159" y="26" width="2" height="16" fill="#333"/>
+              <polygon points="161,26 175,31 161,36" fill="#FFD76A"/>
+              <path d="M150 152 V132 a10 10 0 0 1 20 0 V152Z" fill="#3B2A22"/>
+              <rect x="92" y="100" width="8" height="10" fill="#FFD76A"/><rect x="220" y="100" width="8" height="10" fill="#FFD76A"/>
+              <rect x="152" y="72" width="6" height="8" fill="#FFD76A"/><rect x="162" y="72" width="6" height="8" fill="#FFD76A"/>
+              <polygon points="30,160 40,132 50,160" fill="#245C33"/><polygon points="46,164 58,130 70,164" fill="#2D6E3E"/>
+              <polygon points="262,160 272,134 282,160" fill="#245C33"/><polygon points="278,164 290,128 302,164" fill="#2D6E3E"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Продвинутый</span>
+            <h3>Замок на холме</h3>
+            <p class="stats"><span>≈ 2 500 деталей</span><span>25–40 часов</span></p>
+            <p class="chips"><span>Terrain</span><span>Atmosphere</span><span>MeshPart</span></p>
+          </div>
+        </article>
+
+        <article class="work t3" data-tier="t3">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Городской квартал вечером: дома со светящимися окнами и уличный фонарь">
+              <defs>
+                <linearGradient id="skyD" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2B3A67"/><stop offset="1" stop-color="#F2A07B"/></linearGradient>
+                <radialGradient id="glow2"><stop offset="0" stop-color="#FFE49A" stop-opacity=".9"/><stop offset="1" stop-color="#FFE49A" stop-opacity="0"/></radialGradient>
+              </defs>
+              <rect width="320" height="200" fill="url(#skyD)"/>
+              <rect x="0" y="96" width="50" height="80" fill="#3A4570"/>
+              <rect x="120" y="80" width="44" height="96" fill="#3A4570"/>
+              <rect x="262" y="90" width="58" height="86" fill="#3A4570"/>
+              <rect x="20" y="58" width="70" height="114" fill="#4F5D8C"/><rect x="20" y="58" width="70" height="114" fill="url(#win)"/>
+              <rect x="98" y="92" width="52" height="80" fill="#6A5A8C"/><rect x="98" y="92" width="52" height="80" fill="url(#win)"/>
+              <rect x="158" y="38" width="54" height="134" fill="#3F4C7A"/><rect x="158" y="38" width="54" height="134" fill="url(#win)"/>
+              <rect x="220" y="76" width="70" height="96" fill="#5B6A9A"/><rect x="220" y="76" width="70" height="96" fill="url(#win)"/>
+              <rect x="180" y="26" width="3" height="12" fill="#222"/>
+              <rect y="172" width="320" height="28" fill="#2A2D3A"/>
+              <line x1="0" y1="186" x2="320" y2="186" stroke="#E8D27A" stroke-width="3" stroke-dasharray="16 12"/>
+              <circle cx="104" cy="140" r="30" fill="url(#glow2)"/>
+              <rect x="103" y="140" width="3" height="32" fill="#222"/>
+              <rect x="98" y="134" width="14" height="7" fill="#FFE49A"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Продвинутый</span>
+            <h3>Городской квартал</h3>
+            <p class="stats"><span>≈ 4 000 деталей</span><span>30–50 часов</span></p>
+            <p class="chips"><span>StreamingEnabled</span><span>Модули</span><span>Bloom</span></p>
+          </div>
+        </article>
+
+        <article class="work t4" data-tier="t4">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Парящий остров с водопадом, избушкой и соснами под звёздным небом">
+              <defs>
+                <linearGradient id="skyI" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F1D3A"/><stop offset="1" stop-color="#2B4C7E"/></linearGradient>
+                <radialGradient id="glow3"><stop offset="0" stop-color="#FFE49A" stop-opacity=".9"/><stop offset="1" stop-color="#FFE49A" stop-opacity="0"/></radialGradient>
+              </defs>
+              <rect width="320" height="200" fill="url(#skyI)"/>
+              <g fill="#FFFFFF" opacity=".8"><circle cx="30" cy="24" r="1.4"/><circle cx="84" cy="48" r="1"/><circle cx="270" cy="30" r="1.4"/><circle cx="300" cy="70" r="1"/><circle cx="52" cy="90" r="1"/><circle cx="214" cy="18" r="1"/><circle cx="130" cy="14" r="1.2"/></g>
+              <polygon points="140,0 180,0 238,150 100,150" fill="#FFF3B0" opacity=".1"/>
+              <ellipse cx="60" cy="60" rx="34" ry="8" fill="#fff" opacity=".18"/>
+              <ellipse cx="272" cy="104" rx="30" ry="7" fill="#fff" opacity=".18"/>
+              <polygon points="64,120 256,120 228,160 196,146 164,190 132,150 100,166" fill="#6B4A32"/>
+              <polygon points="100,128 230,128 214,148 190,138 164,170 140,140 112,150" fill="#7C5A40"/>
+              <rect x="64" y="108" width="192" height="14" fill="#4FAE5A"/>
+              <rect x="64" y="108" width="192" height="5" fill="#7BD07A"/>
+              <rect x="212" y="122" width="12" height="46" fill="#8FD6F2" opacity=".85"/>
+              <rect x="208" y="166" width="20" height="3" fill="#BDEBFA" opacity=".8"/>
+              <rect x="106" y="84" width="40" height="24" fill="#D9C29A"/>
+              <polygon points="100,86 126,64 152,86" fill="#B5503C"/>
+              <rect x="116" y="92" width="8" height="8" fill="#FFD76A"/>
+              <circle cx="120" cy="96" r="22" fill="url(#glow3)"/>
+              <rect x="123" y="98" width="8" height="10" fill="#5B3A1E"/>
+              <polygon points="168,108 180,70 192,108" fill="#2E8B57"/>
+              <polygon points="172,90 180,58 188,90" fill="#37A267"/>
+              <polygon points="78,108 88,80 98,108" fill="#2E8B57"/>
+              <polygon points="228,108 237,82 246,108" fill="#2E8B57"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Топовый</span>
+            <h3>Остров-диорама</h3>
+            <p class="stats"><span>≈ 9 000 деталей</span><span>60+ часов</span></p>
+            <p class="chips"><span>Blender</span><span>ParticleEmitter</span><span>Future</span></p>
+          </div>
+        </article>
+
+        <article class="work t4" data-tier="t4">
+          <div class="art">
+            <svg viewBox="0 0 320 200" role="img" aria-label="Город будущего ночью: неоновые башни, луна и летящая машина">
+              <defs>
+                <linearGradient id="skyN" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0A0F24"/><stop offset="1" stop-color="#2A1450"/></linearGradient>
+                <filter id="bl" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.2"/></filter>
+                <linearGradient id="trail" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#FF4FD8" stop-opacity="0"/><stop offset="1" stop-color="#FF4FD8"/></linearGradient>
+              </defs>
+              <rect width="320" height="200" fill="url(#skyN)"/>
+              <circle cx="254" cy="42" r="18" fill="#F5EEFF"/>
+              <circle cx="248" cy="38" r="18" fill="#2A1450" opacity=".0"/>
+              <g id="sk">
+                <rect x="14" y="84" width="40" height="88" fill="#121933" stroke="#3DF2FF" stroke-width="2"/>
+                <rect x="62" y="46" width="34" height="126" fill="#121933" stroke="#FF4FD8" stroke-width="2"/>
+                <rect x="104" y="100" width="44" height="72" fill="#121933" stroke="#3DF2FF" stroke-width="2"/>
+                <rect x="156" y="30" width="30" height="142" fill="#121933" stroke="#3DF2FF" stroke-width="2"/>
+                <rect x="194" y="76" width="42" height="96" fill="#121933" stroke="#FF4FD8" stroke-width="2"/>
+                <rect x="244" y="58" width="32" height="114" fill="#121933" stroke="#3DF2FF" stroke-width="2"/>
+                <rect x="282" y="104" width="30" height="68" fill="#121933" stroke="#FF4FD8" stroke-width="2"/>
+                <line x1="171" y1="30" x2="171" y2="16" stroke="#3DF2FF" stroke-width="2"/>
+              </g>
+              <g filter="url(#bl)" opacity=".9"><use href="#sk"/></g>
+              <g fill="#7DF9FF"><rect x="22" y="96" width="5" height="5"/><rect x="36" y="112" width="5" height="5"/><rect x="70" y="62" width="5" height="5"/><rect x="82" y="90" width="5" height="5"/><rect x="164" y="52" width="5" height="5"/><rect x="164" y="82" width="5" height="5"/><rect x="116" y="120" width="5" height="5"/><rect x="250" y="80" width="5" height="5"/></g>
+              <g fill="#FF8AE6"><rect x="70" y="120" width="5" height="5"/><rect x="204" y="96" width="5" height="5"/><rect x="218" y="124" width="5" height="5"/><rect x="290" y="124" width="5" height="5"/></g>
+              <rect x="206" y="40" width="46" height="3" fill="url(#trail)"/>
+              <rect x="252" y="37" width="20" height="8" fill="#FFFFFF"/>
+              <rect x="258" y="33" width="9" height="5" fill="#3DF2FF"/>
+              <rect y="172" width="320" height="28" fill="#0E1226"/>
+              <line x1="0" y1="186" x2="320" y2="186" stroke="#3DF2FF" stroke-width="2" stroke-dasharray="14 10" opacity=".6"/>
+            </svg>
+          </div>
+          <div class="meta">
+            <span class="badge">Топовый</span>
+            <h3>Город будущего</h3>
+            <p class="stats"><span>≈ 12 000 деталей</span><span>100+ часов</span></p>
+            <p class="chips"><span>Beam</span><span>ColorCorrection</span><span>Team Create</span></p>
+          </div>
+        </article>
+
+      </div>
+      <p class="count" id="count" aria-live="polite"></p>
+    </section>
+
+    <section id="criteria">
+      <div class="sec-head">
+        <p class="eyebrow">Критерии</p>
+        <h2>На что смотрят при проверке</h2>
+        <p class="lead">Эти шесть пунктов проверяют на любом уровне. Если два пункта ниже нормы, заявку отклоняют. Чем выше роль, тем строже оценка.</p>
+      </div>
+      <div class="crit">
+        <div class="crow"><div><h3>Масштаб</h3></div><p>Дверь не ниже 7 studs, потолок выше головы персонажа, мебель по размеру. Проверь постройку, пройдя по ней своим аватаром.</p></div>
+        <div class="crow"><div><h3>Композиция</h3></div><p>В кадре есть главная точка внимания. Передний, средний и дальний план читаются, пустые места работают как воздух.</p></div>
+        <div class="crow"><div><h3>Цвет и материалы</h3></div><p>От 3 до 5 основных цветов, светлое и тёмное в контрасте. Материал подбирай по смыслу: дерево для пола, бетон для стен, стекло для окон.</p></div>
+        <div class="crow"><div><h3>Освещение</h3></div><p>Источники света стоят там, где они нужны. Тени читаются, нет пересвета, ночная и дневная версии выглядят по-разному.</p></div>
+        <div class="crow"><div><h3>Порядок</h3></div><p>Детали закреплены через Anchored, в Explorer есть понятные названия и группы, нет лишних невидимых частей.</p></div>
+        <div class="crow"><div><h3>Скорость</h3></div><p>Нет деталей под землёй и внутри стен, Union не для каждой мелочи. На высоких ролях добавляется проверка на телефоне.</p></div>
+      </div>
+    </section>
+
+    <section id="apply">
+      <div class="sec-head">
+        <p class="eyebrow">Заявка</p>
+        <h2>Как получить роль</h2>
+      </div>
+      <div class="apply">
+        <ol class="flow">
+          <li><strong>Выбери роль</strong><span>Пройди чек-лист выше и отметь, что уже выполнено.</span></li>
+          <li><strong>Собери портфолио</strong><span>Скриншоты из Studio, видео или ссылка на Place. Для каждой работы напиши, сколько в ней деталей.</span></li>
+          <li><strong>Отправь заявку</strong><span>Скопируй шаблон справа, заполни все поля и отправь модераторам. Заявки с пустыми полями не рассматривают.</span></li>
+          <li><strong>Получи решение</strong><span>Модераторы выдадут роль или напишут причину отказа. Повторная заявка возможна только после срока из правил.</span></li>
+        </ol>
+        <div class="tpl">
+          <header><span>Шаблон заявки</span><button class="btn" type="button" id="copy">Скопировать</button></header>
+          <pre id="tpl" tabindex="0">Заявка на роль: Средний билдер
+Ник в Roblox:
+Работы (ссылки или скриншоты):
+1.
+2.
+3.
+Самая сложная постройка (деталей, часов):
+Какие инструменты использовал:
+Что хочу улучшить дальше:
+Подтверждаю: все работы мои, без готовых моделей из Toolbox</pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Требования и сроки можно подогнать под ваш сервер. Иллюстрации в галерее нарисованы из блоков и показывают уровень сложности, а не готовые карты.</p>
+    <p class="mono" id="copy-status" aria-live="polite"></p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  var ROLES = [
+    {
+      id: 't1', name: 'Начинающий билдер', tag: 'Первые постройки',
+      lead: 'Ты освоил основы Studio и собираешь аккуратные небольшие постройки без подсказок.',
+      reqs: [
+        'Уверенно пользуешься Move, Scale и Rotate, привязка к сетке включена, детали не торчат друг из друга',
+        'Собрал минимум 5 завершённых построек разных типов: дом, мост, дерево, забор, мебель',
+        'В самой большой работе не меньше 50 деталей, без зазоров и мерцающих наложений (Z-fighting)',
+        'Использовал не меньше 3 цветов и 2 материалов, постройка не выглядит серой',
+        'Все детали закреплены (Anchored), модель сгруппирована и названа осмысленно, без «Part1» и «Model2»',
+        'Всё собрано тобой вручную, без готовых моделей из Toolbox'
+      ],
+      submit: ['5 скриншотов из Studio с разных углов, на одном виден Explorer', 'Название и короткое описание каждой постройки', 'Ник в Roblox и файл или Place, чтобы модератор мог открыть работу'],
+      perks: ['Роль «Начинающий билдер»', 'Доступ к каналу для новичков и разбору работ', 'Право показывать работы в общем канале'],
+      tools: ['Part', 'Move', 'Scale', 'Rotate', 'Snap to Grid', 'Material', 'Anchored']
+    },
+    {
+      id: 't2', name: 'Средний билдер', tag: 'Уверенные работы',
+      lead: 'Ты строишь с интерьером и светом, держишь масштаб и не теряешься в Explorer.',
+      reqs: [
+        'Минимум 8 завершённых работ, не меньше двух из них с интерьером',
+        'В самой большой постройке 300 деталей и больше',
+        'Умеешь делать Union и Negate, Union не больше пятой части всех деталей',
+        'Держишь палитру строго из 3–5 цветов и сочетаешь материалы: дерево, бетон, стекло',
+        'Поставил свет в каждом помещении: PointLight или SpotLight, настроил Lighting без пересвета',
+        'Соблюдаешь масштаб: дверь не ниже 7 studs, персонаж проходит везде без прыжков',
+        'Ни одной готовой модели из Toolbox, чужие скрипты и плагины указаны в заявке'
+      ],
+      submit: ['8 скриншотов, не меньше 2 интерьеров', 'Скриншоты постройки с включённым светом и без него', 'Список использованных инструментов и плагинов', 'Файл или Place, который модератор может открыть и проверить'],
+      perks: ['Роль «Средний билдер»', 'Участие в командных проектах сервера', 'Право оценивать работы новичков'],
+      tools: ['Union', 'Negate', 'PointLight', 'SpotLight', 'Lighting', 'Material', 'Model']
+    },
+    {
+      id: 't3', name: 'Продвинутый билдер', tag: 'Целые локации',
+      lead: 'Ты собираешь большие локации, работаешь с ландшафтом и атмосферой и думаешь о скорости.',
+      reqs: [
+        'В портфолио от 12 работ, из них две законченные локации',
+        'Постройки от 2000 деталей работают без просадок FPS на среднем ПК',
+        'Работаешь с Terrain Editor: холмы, вода, горы и плавные переходы между материалами',
+        'Настраиваешь атмосферу: Atmosphere, Bloom, ColorCorrection, смена времени суток',
+        'Строишь модулями: стены, окна и крыши повторяются как готовые блоки',
+        'Включил StreamingEnabled и проверил локацию на телефоне и на слабом ПК',
+        'Дал не меньше 5 подробных разборов чужих работ',
+        'Участвовал минимум в одном командном проекте'
+      ],
+      submit: ['Видео локации и 8 и более скриншотов', 'Скриншот окна Stats с показателями производительности', 'Открытый для проверки Place с работой', 'Ссылки на 5 разборов чужих работ'],
+      perks: ['Роль «Продвинутый билдер»', 'Приоритет в заказах и проектах', 'Право проводить разборы работ'],
+      tools: ['Terrain Editor', 'Atmosphere', 'Bloom', 'ColorCorrection', 'StreamingEnabled', 'MeshPart', 'Плагины']
+    },
+    {
+      id: 't4', name: 'Топовый билдер', tag: 'Уровень игр',
+      lead: 'Твои работы выглядят как карты из популярных игр: свой стиль, свои ассеты, стабильная скорость.',
+      reqs: [
+        'В портфолио от 20 работ с узнаваемым общим стилем',
+        'Есть опубликованный Place, в который можно играть без ошибок в Output',
+        'Стабильные 60 FPS на среднем ПК и 30 на телефоне, подтверждено скриншотами Stats',
+        'Настроил Collision Fidelity, CanCollide, CanQuery и CanTouch везде, где это влияет на скорость',
+        'Делаешь свои ассеты: MeshPart из Blender с аккуратной сеткой и разверткой',
+        'Работаешь со светом и эффектами: Future, Atmosphere, ParticleEmitter, Beam, Trail',
+        'Работаешь в Team Create и оставляешь после себя порядок',
+        'Выполнил тестовое задание за 24 часа без Toolbox, его оценивают три модератора',
+        'За последние 3 месяца нет нарушений правил сервера'
+      ],
+      submit: ['Ссылка на опубликованный Place', 'Видеообзор локации на 1–2 минуты и запись процесса сборки', 'Описание твоего вклада в каждую работу', 'Результат тестового задания'],
+      perks: ['Роль «Топовый билдер»', 'Место в команде проектов сервера', 'Право вести заказы и наставлять других', 'Особый цвет роли'],
+      tools: ['Blender', 'Future lighting', 'ParticleEmitter', 'Beam', 'Team Create', 'Collision Fidelity']
+    }
+  ];
+
+  var KEY = 'pb-checks';
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+  var state = load();
+  var current = 't1';
+
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function role(id) { return ROLES.filter(function (r) { return r.id === id; })[0]; }
+  function checked(id) { var a = state[id]; return Array.isArray(a) ? a : []; }
+  function ul(a) { return '<ul class="sq">' + a.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>'; }
+
+  var tabsEl = document.getElementById('tabs');
+  var panelEl = document.getElementById('panel');
+
+  function renderTabs() {
+    tabsEl.innerHTML = ROLES.map(function (r, i) {
+      return '<button type="button" class="tab ' + r.id + '" data-id="' + r.id + '" aria-pressed="' + (r.id === current) + '">' +
+        '<span class="tn">Уровень ' + (i + 1) + '</span><strong>' + esc(r.name) + '</strong>' +
+        '<span class="tp" data-tp="' + r.id + '"></span></button>';
+    }).join('');
+    ROLES.forEach(function (r) { updateTabCount(r.id); });
+  }
+  function updateTabCount(id) {
+    var el = tabsEl.querySelector('[data-tp="' + id + '"]');
+    if (el) el.textContent = checked(id).length + ' из ' + role(id).reqs.length + ' требований';
+  }
+
+  function renderPanel() {
+    var r = role(current), done = checked(current);
+    panelEl.className = 'panel ' + r.id;
+    panelEl.innerHTML =
+      '<div>' +
+        '<p class="tag">' + esc(r.tag) + '</p>' +
+        '<h3>' + esc(r.name) + '</h3>' +
+        '<p class="lead">' + esc(r.lead) + '</p>' +
+        '<div class="prog"><div class="bar"><i id="barfill"></i></div><span id="progtxt"></span></div>' +
+        '<div class="checks">' + r.reqs.map(function (q, i) {
+          return '<label class="chk"><input type="checkbox" id="chk-' + r.id + '-' + i + '" data-i="' + i + '"' + (done.indexOf(i) > -1 ? ' checked' : '') + '><span>' + esc(q) + '</span></label>';
+        }).join('') + '</div>' +
+        '<div id="ready" aria-live="polite"></div>' +
+      '</div>' +
+      '<div class="side">' +
+        '<div><h4>Что приложить к заявке</h4>' + ul(r.submit) + '</div>' +
+        '<div><h4>Что получаешь</h4>' + ul(r.perks) + '</div>' +
+        '<div><h4>Инструменты</h4><div class="chips">' + r.tools.map(function (t) { return '<span>' + esc(t) + '</span>'; }).join('') + '</div></div>' +
+      '</div>';
+    updateProgress();
+  }
+
+  function updateProgress() {
+    var r = role(current), n = checked(current).length, total = r.reqs.length;
+    var pct = Math.round(n / total * 100);
+    var fill = document.getElementById('barfill');
+    if (fill) fill.style.setProperty('--w', pct + '%');
+    var txt = document.getElementById('progtxt');
+    if (txt) txt.textContent = n + ' из ' + total + ' · ' + pct + '%';
+    var ready = document.getElementById('ready');
+    if (ready) {
+      ready.innerHTML = n === total ? '<p class="ready">Все требования выполнены. Можно <a href="#apply">подавать заявку</a>.</p>' : '';
+    }
+    updateTabCount(current);
+  }
+
+  tabsEl.addEventListener('click', function (e) {
+    var b = e.target.closest('.tab');
+    if (!b) return;
+    current = b.getAttribute('data-id');
+    Array.prototype.forEach.call(tabsEl.querySelectorAll('.tab'), function (t) {
+      t.setAttribute('aria-pressed', String(t.getAttribute('data-id') === current));
+    });
+    renderPanel();
+  });
+
+  panelEl.addEventListener('change', function (e) {
+    var inp = e.target;
+    if (!inp || inp.type !== 'checkbox') return;
+    var i = Number(inp.getAttribute('data-i'));
+    var a = checked(current).slice();
+    var at = a.indexOf(i);
+    if (inp.checked && at === -1) a.push(i);
+    if (!inp.checked && at > -1) a.splice(at, 1);
+    state[current] = a;
+    save();
+    updateProgress();
+  });
+
+  renderTabs();
+  renderPanel();
+
+  /* галерея */
+  var filters = document.getElementById('filters');
+  var works = Array.prototype.slice.call(document.querySelectorAll('#gallery .work'));
+  var countEl = document.getElementById('count');
+  function applyFilter(f) {
+    var shown = 0;
+    works.forEach(function (w) {
+      var ok = f === 'all' || w.getAttribute('data-tier') === f;
+      w.hidden = !ok;
+      if (ok) shown++;
+    });
+    countEl.textContent = 'Показано работ: ' + shown + ' из ' + works.length;
+  }
+  filters.addEventListener('click', function (e) {
+    var b = e.target.closest('.fbtn');
+    if (!b) return;
+    Array.prototype.forEach.call(filters.querySelectorAll('.fbtn'), function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+    applyFilter(b.getAttribute('data-f'));
+  });
+  applyFilter('all');
+
+  /* шаблон заявки */
+  var copyBtn = document.getElementById('copy');
+  var tpl = document.getElementById('tpl');
+  var status = document.getElementById('copy-status');
+  function selectTpl() {
+    try {
+      var r = document.createRange(); r.selectNodeContents(tpl);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    } catch (e) {}
+  }
+  copyBtn.addEventListener('click', function () {
+    var text = tpl.innerText;
+    function ok() {
+      copyBtn.textContent = 'Скопировано';
+      status.textContent = 'Шаблон заявки скопирован.';
+      setTimeout(function () { copyBtn.textContent = 'Скопировать'; status.textContent = ''; }, 1800);
+    }
+    function fail() {
+      selectTpl();
+      status.textContent = 'Текст выделен. Нажмите Ctrl+C или «Копировать» в меню.';
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(ok, fail);
+      } else { fail(); }
+    } catch (e) { fail(); }
+  });
+})();
+</script>
+
+</body></html>
